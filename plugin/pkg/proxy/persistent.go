@@ -1,26 +1,17 @@
 package proxy
 
 import (
-	"bufio"
-	"bytes"
 	"crypto/tls"
-	"encoding/base64"
-	"fmt"
-	"io"
-	"net/http"
 	"sort"
 	"time"
 
-	"github.com/coredns/coredns/plugin/pkg/transport"
 	"github.com/miekg/dns"
 )
 
 // a persistConn hold the dns.Conn and the last used time.
 type persistConn struct {
-	c     *dns.Conn
-	trans string
-	host  string
-	used  time.Time
+	c    *dns.Conn
+	used time.Time
 }
 
 // Transport hold the persistent cache.
@@ -28,7 +19,6 @@ type Transport struct {
 	avgDialTime int64                          // kind of average time of dial time
 	conns       [typeTotalCount][]*persistConn // Buckets for udp, tcp and tcp-tls.
 	expire      time.Duration                  // After this duration a connection is expired.
-	trans       string
 	addr        string
 	tlsConfig   *tls.Config
 	proxyName   string
@@ -39,73 +29,10 @@ type Transport struct {
 	stop  chan bool
 }
 
-func (pc *persistConn) writeHttpRequest(m *dns.Msg) (err error) {
-	var packedMsg []byte
-	packedMsg, err = m.Pack()
-	if err != nil {
-		return
-	}
-
-	var buf bytes.Buffer
-	var req *http.Request
-	req, err = http.NewRequest(http.MethodGet, fmt.Sprintf("%s?dns=%s", "/dns-query", base64.RawURLEncoding.EncodeToString(packedMsg)), nil)
-	if err != nil {
-		return
-	}
-	req.Host = pc.host
-	req.Header.Add("Accept", "application/dns-message")
-	req.Write(&buf)
-
-	_, err = pc.c.Conn.Write(buf.Bytes())
-	return
-}
-
-func (pc *persistConn) readHttpResponse() (b []byte, err error) {
-	res, err := http.ReadResponse(bufio.NewReader(pc.c.Conn), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var buf bytes.Buffer
-	_, err = io.Copy(bufio.NewWriter(&buf), res.Body)
-	if err != nil {
-		return
-	}
-
-	b = buf.Bytes()
-	return
-}
-
-func (pc *persistConn) writeMsg(m *dns.Msg) (err error) {
-	if pc.trans == transport.HTTPS {
-		err = pc.writeHttpRequest(m)
-		return
-	}
-	return pc.c.WriteMsg(m)
-}
-
-func (pc *persistConn) readMsg() (m *dns.Msg, err error) {
-	if pc.trans == transport.HTTPS {
-		var b []byte
-		b, err = pc.readHttpResponse()
-		if err != nil {
-			return
-		}
-
-		m = new(dns.Msg)
-		err = m.Unpack(b)
-		return
-	}
-
-	m, err = pc.c.ReadMsg()
-	return
-}
-
-func newTransport(proxyName, addr, trans string) *Transport {
+func newTransport(proxyName, addr string) *Transport {
 	t := &Transport{
 		avgDialTime: int64(maxDialTimeout / 2),
 		conns:       [typeTotalCount][]*persistConn{},
-		trans:       trans,
 		expire:      defaultExpire,
 		addr:        addr,
 		dial:        make(chan string),
