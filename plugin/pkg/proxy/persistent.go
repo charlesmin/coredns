@@ -1,13 +1,7 @@
 package proxy
 
 import (
-	"bufio"
-	"bytes"
 	"crypto/tls"
-	"encoding/base64"
-	"fmt"
-	"io"
-	"net/http"
 	"sort"
 	"time"
 
@@ -20,63 +14,6 @@ type persistConn struct {
 	used time.Time
 }
 
-func (pc *persistConn) WriteMsg(msg *dns.Msg, serverName, queryPath string) (err error) {
-	if msg == nil {
-		err = fmt.Errorf("dns message is nil")
-		return
-	}
-
-	if queryPath != "" {
-		var out []byte
-		out, err = msg.Pack()
-		if err != nil {
-			return
-		}
-
-		var r *http.Request
-		r, err = http.NewRequest(http.MethodGet, fmt.Sprintf("%s?dns=%s", queryPath, base64.RawURLEncoding.EncodeToString(out)), nil)
-		if err != nil {
-			return
-		}
-		r.Host = serverName
-		r.Header.Add("Accept", "application/dns-message")
-		var buf bytes.Buffer
-		r.Write(&buf)
-
-		_, err = pc.c.Conn.Write(buf.Bytes())
-	} else {
-		err = pc.c.WriteMsg(msg)
-	}
-	return
-}
-
-func (pc *persistConn) ReadMsg(httpProto bool) (msg *dns.Msg, err error) {
-	if httpProto {
-		var res *http.Response
-		res, err = http.ReadResponse(bufio.NewReader(pc.c.Conn), nil)
-		if err != nil {
-			return
-		}
-
-		defer res.Body.Close()
-
-		var buf bytes.Buffer
-		_, err = io.Copy(bufio.NewWriter(&buf), res.Body)
-		if err != nil {
-			return nil, err
-		}
-
-		msg = new(dns.Msg)
-		err = msg.Unpack(buf.Bytes())
-		if err != nil {
-			return
-		}
-	} else {
-		msg, err = pc.c.ReadMsg()
-	}
-	return
-}
-
 // Transport hold the persistent cache.
 type Transport struct {
 	avgDialTime int64                          // kind of average time of dial time
@@ -85,7 +22,6 @@ type Transport struct {
 	addr        string
 	tlsConfig   *tls.Config
 	proxyName   string
-	allowHttp2  bool
 
 	dial  chan string
 	yield chan *persistConn
@@ -104,7 +40,6 @@ func newTransport(proxyName, addr string) *Transport {
 		ret:         make(chan *persistConn),
 		stop:        make(chan bool),
 		proxyName:   proxyName,
-		allowHttp2:  true,
 	}
 	return t
 }

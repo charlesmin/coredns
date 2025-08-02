@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"crypto/tls"
+	"net/http"
 	"runtime"
 	"sync/atomic"
 	"time"
@@ -17,6 +18,7 @@ type Proxy struct {
 	proxyName string
 
 	transport *Transport
+	client    *http.Client
 
 	readTimeout time.Duration
 
