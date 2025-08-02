@@ -275,6 +275,8 @@ type Options struct {
 	HCRecursionDesired bool
 	// HCDomain sets domain for Proxy healthcheck requests
 	HCDomain string
+	// Https proto query path
+	DNSQueryPath string
 }
 
 var defaultTimeout = 5 * time.Second

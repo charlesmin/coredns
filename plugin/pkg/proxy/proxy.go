@@ -2,14 +2,11 @@ package proxy
 
 import (
 	"crypto/tls"
-	"fmt"
-	"net/url"
 	"runtime"
 	"sync/atomic"
 	"time"
 
 	"github.com/coredns/coredns/plugin/pkg/log"
-	"github.com/coredns/coredns/plugin/pkg/transport"
 	"github.com/coredns/coredns/plugin/pkg/up"
 )
 
@@ -18,7 +15,6 @@ type Proxy struct {
 	fails     uint32
 	addr      string
 	proxyName string
-	url       *url.URL
 
 	transport *Transport
 
@@ -31,25 +27,12 @@ type Proxy struct {
 
 // NewProxy returns a new proxy.
 func NewProxy(proxyName, addr, trans string) *Proxy {
-	var url *url.URL
-	var err error
-	var host string = addr
-
-	if trans == transport.HTTPS {
-		url, err = url.Parse(fmt.Sprintf("%s://%s", trans, addr))
-		if err != nil {
-			panic(fmt.Sprintf("'%s://%s' http url parse failed: %v", trans, addr, err))
-		}
-		host = url.Host
-	}
-
 	p := &Proxy{
-		addr:        host,
-		url:         url,
+		addr:        addr,
 		fails:       0,
 		probe:       up.New(),
 		readTimeout: 2 * time.Second,
-		transport:   newTransport(proxyName, host),
+		transport:   newTransport(proxyName, addr),
 		health:      NewHealthChecker(proxyName, trans, true, "."),
 		proxyName:   proxyName,
 	}
@@ -59,8 +42,6 @@ func NewProxy(proxyName, addr, trans string) *Proxy {
 }
 
 func (p *Proxy) Addr() string { return p.addr }
-
-func (p *Proxy) IsHttpProxy() bool { return p.url != nil }
 
 // SetTLSConfig sets the TLS config in the lower p.transport and in the healthchecking client.
 func (p *Proxy) SetTLSConfig(cfg *tls.Config) {

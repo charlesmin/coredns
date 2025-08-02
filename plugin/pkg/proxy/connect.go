@@ -5,14 +5,9 @@
 package proxy
 
 import (
-	"bufio"
-	"bytes"
 	"context"
-	"encoding/base64"
 	"errors"
-	"fmt"
 	"io"
-	"net/http"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -141,26 +136,12 @@ func (p *Proxy) Connect(ctx context.Context, state request.Request, opts Options
 		state.Req.Id = originId
 	}()
 
-	var msg []byte
-	msg, err = state.Req.Pack()
-	if err != nil {
-		return nil, err
+	var serverName string
+	if p.transport.tlsConfig != nil {
+		serverName = p.transport.tlsConfig.ServerName
 	}
 
-	buf := bytes.NewBuffer(msg)
-	if p.IsHttpProxy() {
-		var req *http.Request
-		req, err = http.NewRequest(http.MethodGet, fmt.Sprintf("%s?dns=%s", p.url.Path, base64.RawURLEncoding.EncodeToString(msg)), nil)
-		if err != nil {
-			return nil, err
-		}
-		req.Host = p.addr
-		req.Header.Add("Accept", "application/dns-message")
-		buf.Reset()
-		req.Write(buf)
-	}
-
-	if _, err := pc.c.Write(buf.Bytes()); err != nil {
+	if err := pc.WriteMsg(state.Req, serverName, opts.DNSQueryPath); err != nil {
 		pc.c.Close() // not giving it back
 		if err == io.EOF && cached {
 			return nil, ErrCachedClosed
@@ -168,30 +149,15 @@ func (p *Proxy) Connect(ctx context.Context, state request.Request, opts Options
 		return nil, err
 	}
 
+	httpProto := false
+	if opts.DNSQueryPath != "" {
+		httpProto = true
+	}
+
 	var ret *dns.Msg
 	pc.c.SetReadDeadline(time.Now().Add(p.readTimeout))
 	for {
-		if p.IsHttpProxy() {
-			res, err := http.ReadResponse(bufio.NewReader(pc.c.Conn), nil)
-			if err != nil {
-				return nil, err
-			}
-
-			var buf bytes.Buffer
-			_, err = io.Copy(bufio.NewWriter(&buf), res.Body)
-			if err != nil {
-				return nil, err
-			}
-
-			ret = new(dns.Msg)
-			err = ret.Unpack(buf.Bytes())
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			ret, err = pc.c.ReadMsg()
-		}
-
+		ret, err = pc.ReadMsg(httpProto)
 		if err != nil {
 			if ret != nil && (state.Req.Id == ret.Id) && p.transport.transportTypeFromConn(pc) == typeUDP && shouldTruncateResponse(err) {
 				// For UDP, if the error is an overflow, we probably have an upstream misbehaving in some way.

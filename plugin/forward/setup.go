@@ -157,6 +157,7 @@ func parseStanza(c *caddy.Controller) (*Forward, error) {
 		if transports[i] == transport.TLS || transports[i] == transport.HTTPS {
 			f.proxies[i].SetTLSConfig(f.tlsConfig)
 		}
+
 		f.proxies[i].SetExpire(f.expire)
 		f.proxies[i].GetHealthchecker().SetRecursionDesired(f.opts.HCRecursionDesired)
 		// when TLS is used, checks are set to tcp-tls
@@ -252,6 +253,11 @@ func parseBlock(c *caddy.Controller, f *Forward) error {
 			return c.ArgErr()
 		}
 		f.tlsServerName = c.Val()
+	case "query_path":
+		if !c.NextArg() {
+			return c.ArgErr()
+		}
+		f.opts.DNSQueryPath = c.Val()
 	case "expire":
 		if !c.NextArg() {
 			return c.ArgErr()
