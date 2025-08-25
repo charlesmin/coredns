@@ -39,7 +39,7 @@ type dnsHc struct {
 // NewHealthChecker returns a new HealthChecker based on transport.
 func NewHealthChecker(proxyName, trans string, recursionDesired bool, domain string) HealthChecker {
 	switch trans {
-	case transport.DNS, transport.TLS:
+	case transport.DNS, transport.TLS, transport.HTTPS:
 		c := new(dns.Client)
 		c.Net = "udp"
 		c.ReadTimeout = 1 * time.Second

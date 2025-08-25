@@ -125,13 +125,14 @@ func parseStanza(c *caddy.Controller) (*Forward, error) {
 	}
 
 	transports := make([]string, len(toHosts))
-	allowedTrans := map[string]bool{"dns": true, "tls": true}
+	allowedTrans := map[string]bool{"dns": true, "tls": true, "https": true}
 	for i, host := range toHosts {
 		trans, h := parse.Transport(host)
 
 		if !allowedTrans[trans] {
 			return f, fmt.Errorf("'%s' is not supported as a destination protocol in forward: %s", trans, host)
 		}
+
 		p := proxy.NewProxy("forward", h, trans)
 		f.proxies = append(f.proxies, p)
 		transports[i] = trans
@@ -153,9 +154,10 @@ func parseStanza(c *caddy.Controller) (*Forward, error) {
 
 	for i := range f.proxies {
 		// Only set this for proxies that need it.
-		if transports[i] == transport.TLS {
+		if transports[i] == transport.TLS || transports[i] == transport.HTTPS {
 			f.proxies[i].SetTLSConfig(f.tlsConfig)
 		}
+
 		f.proxies[i].SetExpire(f.expire)
 		f.proxies[i].GetHealthchecker().SetRecursionDesired(f.opts.HCRecursionDesired)
 		// when TLS is used, checks are set to tcp-tls
@@ -251,6 +253,11 @@ func parseBlock(c *caddy.Controller, f *Forward) error {
 			return c.ArgErr()
 		}
 		f.tlsServerName = c.Val()
+	case "query_path":
+		if !c.NextArg() {
+			return c.ArgErr()
+		}
+		f.opts.DNSQueryPath = c.Val()
 	case "expire":
 		if !c.NextArg() {
 			return c.ArgErr()

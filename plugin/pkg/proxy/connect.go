@@ -5,15 +5,23 @@
 package proxy
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"crypto/tls"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/coredns/coredns/request"
+	"golang.org/x/net/http2"
 
 	"github.com/miekg/dns"
 )
@@ -117,6 +125,74 @@ func (p *Proxy) Connect(ctx context.Context, state request.Request, opts Options
 		proto = state.Proto()
 	}
 
+	var serverName string
+	if p.transport.tlsConfig != nil {
+		serverName = p.transport.tlsConfig.ServerName
+	}
+
+	// DOH forward
+	if opts.DNSQueryPath != "" {
+		var out []byte
+		out, err := state.Req.Pack()
+		if err != nil {
+			return nil, err
+		}
+
+		if p.client == nil {
+			tr := &http.Transport{
+				DialContext: (&net.Dialer{
+					Timeout: 3 * time.Second,
+				}).DialContext,
+				TLSHandshakeTimeout:   5 * time.Second,
+				ResponseHeaderTimeout: 5 * time.Second,
+				IdleConnTimeout:       60 * time.Second,
+				TLSClientConfig: &tls.Config{
+					ServerName: serverName,
+					NextProtos: []string{"h2"},
+				},
+			}
+
+			http2.ConfigureTransport(tr)
+			p.client = &http.Client{
+				Transport: tr,
+				Timeout:   10 * time.Second,
+			}
+		}
+
+		var r *http.Request
+		r, err = http.NewRequest(http.MethodGet, fmt.Sprintf("https://%s%s?dns=%s", serverName, opts.DNSQueryPath, base64.RawURLEncoding.EncodeToString(out)), nil)
+		if err != nil {
+			return nil, err
+		}
+		r.Host = serverName
+		r.Header.Add("Accept", "application/dns-message")
+
+		res, err := p.client.Do(r)
+		if err != nil {
+			return nil, err
+		}
+		defer res.Body.Close()
+
+		if res.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("http status(%d) is not ok", res.StatusCode)
+		}
+
+		var buf bytes.Buffer
+		_, err = io.Copy(bufio.NewWriter(&buf), res.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		msg := new(dns.Msg)
+		err = msg.Unpack(buf.Bytes())
+		if err != nil {
+			return nil, err
+		}
+
+		return msg, nil
+	}
+
+	// DOT or UDP forward
 	pc, cached, err := p.transport.Dial(proto)
 	if err != nil {
 		return nil, err
