@@ -10,7 +10,7 @@ import (
 
 // Policy defines a policy we use for selecting upstreams.
 type Policy interface {
-	List([]*proxy.Proxy) []*proxy.Proxy
+	List([]proxy.IProxy) []proxy.IProxy
 	String() string
 }
 
@@ -19,19 +19,19 @@ type random struct{}
 
 func (r *random) String() string { return "random" }
 
-func (r *random) List(p []*proxy.Proxy) []*proxy.Proxy {
+func (r *random) List(p []proxy.IProxy) []proxy.IProxy {
 	switch len(p) {
 	case 1:
 		return p
 	case 2:
 		if rn.Int()%2 == 0 {
-			return []*proxy.Proxy{p[1], p[0]} // swap
+			return []proxy.IProxy{p[1], p[0]} // swap
 		}
 		return p
 	}
 
 	perms := rn.Perm(len(p))
-	rnd := make([]*proxy.Proxy, len(p))
+	rnd := make([]proxy.IProxy, len(p))
 
 	for i, p1 := range perms {
 		rnd[i] = p[p1]
@@ -46,11 +46,11 @@ type roundRobin struct {
 
 func (r *roundRobin) String() string { return "round_robin" }
 
-func (r *roundRobin) List(p []*proxy.Proxy) []*proxy.Proxy {
+func (r *roundRobin) List(p []proxy.IProxy) []proxy.IProxy {
 	poolLen := uint32(len(p))
 	i := atomic.AddUint32(&r.robin, 1) % poolLen
 
-	robin := []*proxy.Proxy{p[i]}
+	robin := []proxy.IProxy{p[i]}
 	robin = append(robin, p[:i]...)
 	robin = append(robin, p[i+1:]...)
 
@@ -62,7 +62,7 @@ type sequential struct{}
 
 func (r *sequential) String() string { return "sequential" }
 
-func (r *sequential) List(p []*proxy.Proxy) []*proxy.Proxy {
+func (r *sequential) List(p []proxy.IProxy) []proxy.IProxy {
 	return p
 }
 

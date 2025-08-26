@@ -41,6 +41,7 @@ func NewProxy(proxyName, addr, trans string) *Proxy {
 	return p
 }
 
+func (p *Proxy) Name() string { return p.proxyName }
 func (p *Proxy) Addr() string { return p.addr }
 
 // SetTLSConfig sets the TLS config in the lower p.transport and in the healthchecking client.
@@ -96,8 +97,8 @@ func (p *Proxy) SetReadTimeout(duration time.Duration) {
 	p.readTimeout = duration
 }
 
-// incrementFails increments the number of fails safely.
-func (p *Proxy) incrementFails() {
+// IncrementFails increments the number of fails safely.
+func (p *Proxy) IncrementFails() {
 	curVal := atomic.LoadUint32(&p.fails)
 	if curVal > curVal+1 {
 		// overflow occurred, do not update the counter again
@@ -106,6 +107,15 @@ func (p *Proxy) incrementFails() {
 	atomic.AddUint32(&p.fails, 1)
 }
 
+// ResetFails resets the number of fails safely.
+func (p *Proxy) ResetFails() {
+	atomic.StoreUint32(&p.fails, 0)
+}
+
 const (
 	maxTimeout = 2 * time.Second
+)
+
+var (
+	_ IProxy = (*Proxy)(nil)
 )

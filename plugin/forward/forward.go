@@ -36,7 +36,7 @@ const (
 type Forward struct {
 	concurrent int64 // atomic counters need to be first in struct for proper alignment
 
-	proxies    []*proxyPkg.Proxy
+	proxies    []proxyPkg.IProxy
 	p          Policy
 	hcInterval time.Duration
 
@@ -70,7 +70,7 @@ func New() *Forward {
 }
 
 // SetProxy appends p to the proxy list and starts healthchecking.
-func (f *Forward) SetProxy(p *proxyPkg.Proxy) {
+func (f *Forward) SetProxy(p proxyPkg.IProxy) {
 	f.proxies = append(f.proxies, p)
 	p.Start(f.hcInterval)
 }
@@ -254,7 +254,7 @@ func (f *Forward) ForceTCP() bool { return f.opts.ForceTCP }
 func (f *Forward) PreferUDP() bool { return f.opts.PreferUDP }
 
 // List returns a set of proxies to be used for this client depending on the policy in f.
-func (f *Forward) List() []*proxyPkg.Proxy { return f.p.List(f.proxies) }
+func (f *Forward) List() []proxyPkg.IProxy { return f.p.List(f.proxies) }
 
 var (
 	// ErrNoHealthy means no healthy proxies left.
@@ -275,6 +275,8 @@ type Options struct {
 	HCRecursionDesired bool
 	// HCDomain sets domain for Proxy healthcheck requests
 	HCDomain string
+	// DNSQueryPath sets doh protocol query path
+	DNSQueryPath string
 }
 
 var defaultTimeout = 5 * time.Second

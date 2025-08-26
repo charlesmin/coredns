@@ -122,7 +122,7 @@ func TestProxyIncrementFails(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			p := NewProxy("TestProxyIncrementFails", "bad_address", transport.DNS)
 			p.fails = tc.fails
-			p.incrementFails()
+			p.IncrementFails()
 			if p.fails != tc.expectFails {
 				t.Errorf("Expected fails to be %d, got %d", tc.expectFails, p.fails)
 			}

@@ -14,7 +14,7 @@ import (
 
 func TestList(t *testing.T) {
 	f := Forward{
-		proxies: []*proxy.Proxy{
+		proxies: []proxy.IProxy{
 			proxy.NewProxy("TestList", "1.1.1.1:53", transport.DNS),
 			proxy.NewProxy("TestList", "2.2.2.2:53", transport.DNS),
 			proxy.NewProxy("TestList", "3.3.3.3:53", transport.DNS),
@@ -22,7 +22,7 @@ func TestList(t *testing.T) {
 		p: &roundRobin{},
 	}
 
-	expect := []*proxy.Proxy{
+	expect := []proxy.IProxy{
 		proxy.NewProxy("TestList", "2.2.2.2:53", transport.DNS),
 		proxy.NewProxy("TestList", "1.1.1.1:53", transport.DNS),
 		proxy.NewProxy("TestList", "3.3.3.3:53", transport.DNS),

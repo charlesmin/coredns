@@ -23,4 +23,6 @@ type Options struct {
 	HCRecursionDesired bool
 	// HCDomain sets domain for Proxy healthcheck requests
 	HCDomain string
+	// Https proto query path
+	DNSQueryPath string
 }

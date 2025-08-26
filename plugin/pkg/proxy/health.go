@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"crypto/tls"
-	"sync/atomic"
 	"time"
 
 	"github.com/coredns/coredns/plugin/pkg/log"
@@ -13,7 +12,7 @@ import (
 
 // HealthChecker checks the upstream health.
 type HealthChecker interface {
-	Check(*Proxy) error
+	Check(IProxy) error
 	SetTLSConfig(*tls.Config)
 	GetTLSConfig() *tls.Config
 	SetRecursionDesired(bool)
@@ -39,7 +38,7 @@ type dnsHc struct {
 // NewHealthChecker returns a new HealthChecker based on transport.
 func NewHealthChecker(proxyName, trans string, recursionDesired bool, domain string) HealthChecker {
 	switch trans {
-	case transport.DNS, transport.TLS:
+	case transport.DNS, transport.TLS, transport.HTTPS:
 		c := new(dns.Client)
 		c.Net = "udp"
 		c.ReadTimeout = 1 * time.Second
@@ -104,15 +103,15 @@ func (h *dnsHc) SetWriteTimeout(t time.Duration) {
 // replies are considered fails, basically anything else constitutes a healthy upstream.
 
 // Check is used as the up.Func in the up.Probe.
-func (h *dnsHc) Check(p *Proxy) error {
-	err := h.send(p.addr)
+func (h *dnsHc) Check(p IProxy) error {
+	err := h.send(p.Addr())
 	if err != nil {
-		healthcheckFailureCount.WithLabelValues(p.proxyName, p.addr).Add(1)
-		p.incrementFails()
+		healthcheckFailureCount.WithLabelValues(p.Name(), p.Addr()).Add(1)
+		p.IncrementFails()
 		return err
 	}
 
-	atomic.StoreUint32(&p.fails, 0)
+	p.ResetFails()
 	return nil
 }
 

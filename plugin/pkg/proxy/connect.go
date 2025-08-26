@@ -5,11 +5,17 @@
 package proxy
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"net/http"
+	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -117,6 +123,7 @@ func (p *Proxy) Connect(ctx context.Context, state request.Request, opts Options
 		proto = state.Proto()
 	}
 
+	// DOT or UDP forward
 	pc, cached, err := p.transport.Dial(proto)
 	if err != nil {
 		return nil, err
@@ -191,6 +198,57 @@ func (p *Proxy) Connect(ctx context.Context, state request.Request, opts Options
 	return ret, nil
 }
 
+func (p *DOHProxy) Connect(ctx context.Context, state request.Request, opts Options) (*dns.Msg, error) {
+	var out []byte
+	out, err := state.Req.Pack()
+	if err != nil {
+		return nil, err
+	}
+
+	var queryURL string
+	if opts.DNSQueryPath != "" {
+		queryURL = path.Join(p.baseURL, opts.DNSQueryPath)
+	} else {
+		queryURL = path.Join(p.baseURL, "/dns-query")
+	}
+
+	var r *http.Request
+	r, err = http.NewRequestWithContext(ctx, http.MethodPost, queryURL, bytes.NewBuffer(out))
+	if err != nil {
+		return nil, err
+	}
+	r.Host = p.addr
+	r.Header.Add("Content-Type", "application/dns-message")
+	r.Header.Add("Accept", "application/dns-message")
+
+	res, err := p.client.Do(r)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("http status(%d) is not ok", res.StatusCode)
+	}
+
+	buf := bufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+
+	defer bufferPool.Put(buf)
+	_, err = io.Copy(bufio.NewWriter(buf), res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	msg := new(dns.Msg)
+	err = msg.Unpack(buf.Bytes())
+	if err != nil {
+		return nil, err
+	}
+
+	return msg, nil
+}
+
 const cumulativeAvgWeight = 4
 
 // Function to determine if a response should be truncated.
@@ -215,4 +273,10 @@ func truncateResponse(response *dns.Msg) *dns.Msg {
 	// Set TC bit to indicate truncation.
 	response.Truncated = true
 	return response
+}
+
+var bufferPool = sync.Pool{
+	New: func() any {
+		return new(bytes.Buffer)
+	},
 }
