@@ -42,6 +42,11 @@ func HostPortOrFile(s ...string) ([]string, error) {
 			continue
 		}
 
+		if trans == transport.HTTPS {
+			servers = append(servers, host)
+			continue
+		}
+
 		addr, _, err := net.SplitHostPort(host)
 
 		if err != nil {
