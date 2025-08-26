@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -207,9 +206,13 @@ func (p *DOHProxy) Connect(ctx context.Context, state request.Request, opts Opti
 
 	var queryURL string
 	if opts.DNSQueryPath != "" {
-		queryURL = path.Join(p.baseURL, opts.DNSQueryPath)
+		if strings.HasSuffix(opts.DNSQueryPath, "/") {
+			queryURL = p.baseURL + opts.DNSQueryPath
+		} else {
+			queryURL = p.baseURL + "/" + opts.DNSQueryPath
+		}
 	} else {
-		queryURL = path.Join(p.baseURL, "/dns-query")
+		queryURL = p.baseURL + "/dns-query"
 	}
 
 	var r *http.Request
