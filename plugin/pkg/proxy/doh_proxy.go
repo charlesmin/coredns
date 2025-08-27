@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/coredns/coredns/plugin/pkg/log"
+	"github.com/coredns/coredns/plugin/pkg/transport"
 	"github.com/coredns/coredns/plugin/pkg/up"
 	"golang.org/x/net/http2"
 )
@@ -24,7 +25,7 @@ const (
 // DOHProxy defines an upstream host.
 type DOHProxy struct {
 	fails     uint32
-	addr      string
+	host      string
 	proxyName string
 	baseURL   string
 
@@ -39,7 +40,7 @@ type DOHProxy struct {
 }
 
 // NewDOHProxy returns a new doh DOHProxy.
-func NewDOHProxy(proxyName, addr, trans string) *DOHProxy {
+func NewDOHProxy(proxyName, host, path string) *DOHProxy {
 	tr := &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout: defaultDialTimeout,
@@ -50,13 +51,13 @@ func NewDOHProxy(proxyName, addr, trans string) *DOHProxy {
 	}
 
 	p := &DOHProxy{
-		addr:        addr,
+		host:        host,
 		fails:       0,
 		probe:       up.New(),
 		readTimeout: 2 * time.Second,
-		health:      NewHealthChecker(proxyName, trans, true, "."),
+		health:      NewHealthChecker(proxyName, transport.HTTPS, true, "."),
 		proxyName:   proxyName,
-		baseURL:     "https://" + addr,
+		baseURL:     "https://" + host + path,
 		transport:   tr,
 		client: &http.Client{
 			Transport: tr,
@@ -69,7 +70,7 @@ func NewDOHProxy(proxyName, addr, trans string) *DOHProxy {
 }
 
 func (p *DOHProxy) Name() string { return p.proxyName }
-func (p *DOHProxy) Addr() string { return p.addr }
+func (p *DOHProxy) Addr() string { return p.host }
 
 // SetTLSConfig sets the TLS config in the lower p.transport and in the healthchecking client.
 func (p *DOHProxy) SetTLSConfig(cfg *tls.Config) {

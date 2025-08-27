@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -135,7 +136,17 @@ func parseStanza(c *caddy.Controller) (*Forward, error) {
 
 		var p proxy.IProxy
 		if trans == transport.HTTPS {
-			p = proxy.NewDOHProxy("forward", h, trans)
+			upstreamURL, err := url.Parse(host)
+			if err != nil {
+				return f, err
+			}
+
+			path := upstreamURL.Path
+			if path == "" {
+				path = "/dns-query"
+			}
+
+			p = proxy.NewDOHProxy("forward", upstreamURL.Host, path)
 		} else {
 			p = proxy.NewProxy("forward", h, trans)
 		}
@@ -259,11 +270,6 @@ func parseBlock(c *caddy.Controller, f *Forward) error {
 			return c.ArgErr()
 		}
 		f.tlsServerName = c.Val()
-	case "query_path":
-		if !c.NextArg() {
-			return c.ArgErr()
-		}
-		f.opts.DNSQueryPath = c.Val()
 	case "expire":
 		if !c.NextArg() {
 			return c.ArgErr()

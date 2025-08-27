@@ -43,7 +43,7 @@ func HostPortOrFile(s ...string) ([]string, error) {
 		}
 
 		if trans == transport.HTTPS {
-			servers = append(servers, trans+"://"+net.JoinHostPort(host, transport.HTTPSPort))
+			servers = append(servers, h)
 			continue
 		}
 

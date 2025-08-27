@@ -204,23 +204,12 @@ func (p *DOHProxy) Connect(ctx context.Context, state request.Request, opts Opti
 		return nil, err
 	}
 
-	var queryURL string
-	if opts.DNSQueryPath != "" {
-		if strings.HasSuffix(opts.DNSQueryPath, "/") {
-			queryURL = p.baseURL + opts.DNSQueryPath
-		} else {
-			queryURL = p.baseURL + "/" + opts.DNSQueryPath
-		}
-	} else {
-		queryURL = p.baseURL + "/dns-query"
-	}
-
 	var r *http.Request
-	r, err = http.NewRequestWithContext(ctx, http.MethodPost, queryURL, bytes.NewBuffer(out))
+	r, err = http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL, bytes.NewBuffer(out))
 	if err != nil {
 		return nil, err
 	}
-	r.Host = p.addr
+	r.Host = p.host
 	r.Header.Add("Content-Type", "application/dns-message")
 	r.Header.Add("Accept", "application/dns-message")
 
