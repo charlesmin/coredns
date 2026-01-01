@@ -57,6 +57,10 @@ func (p *Proxy) GetHealthchecker() HealthChecker {
 	return p.health
 }
 
+func (p *Proxy) GetTransport() *Transport {
+	return p.transport
+}
+
 func (p *Proxy) Fails() uint32 {
 	return atomic.LoadUint32(&p.fails)
 }
